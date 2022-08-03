@@ -14,7 +14,7 @@ from billiard.einfo import ExceptionInfo
 
 from celery import current_app
 from celery import states
-from celery._state import _task_stack
+from celery._state import _task_stack, get_current_worker_task
 from celery.canvas import signature
 from celery.exceptions import MaxRetriesExceededError, Reject, Retry
 from celery.five import class_property, items, with_metaclass
@@ -332,7 +332,12 @@ class Task(object):
 
     __bound__ = False
 
+    #: Default task priority.
+    priority = None
+
     from_config = (
+        ('priority', 'CELERY_TASK_DEFAULT_PRIORITY'),
+        ('send_error_emails', 'CELERY_SEND_TASK_ERROR_EMAILS'),
         ('send_error_emails', 'CELERY_SEND_TASK_ERROR_EMAILS'),
         ('serializer', 'CELERY_TASK_SERIALIZER'),
         ('rate_limit', 'CELERY_DEFAULT_RATE_LIMIT'),
@@ -547,6 +552,14 @@ class Task(object):
 
         """
         app = self._get_app()
+
+        if self.priority:
+            options.setdefault('priority', self.priority)
+        else:
+            parent = get_current_worker_task()
+            if parent and app.conf.CELERY_TASK_INHERIT_PARENT_PRIORITY:
+                options.setdefault('priority', parent.request.delivery_info.get('priority'))
+
         if app.conf.CELERY_ALWAYS_EAGER:
             return self.apply(args, kwargs, task_id=task_id or uuid(),
                               link=link, link_error=link_error, **options)
@@ -576,6 +589,10 @@ class Task(object):
             'time_limit': limit_hard,
             'reply_to': request.reply_to,
         }
+        delivery_info = request.delivery_info or {}
+        priority = delivery_info.get('priority')
+        if priority is not None:
+            options['priority'] = priority
         options.update(
             {'queue': queue} if queue else (request.delivery_info or {})
         )
@@ -728,7 +745,10 @@ class Task(object):
                    'callbacks': maybe_list(link),
                    'errbacks': maybe_list(link_error),
                    'headers': options.get('headers'),
-                   'delivery_info': {'is_eager': True}}
+                   'delivery_info': {
+                        'is_eager': True,
+                        'priority': options.get('priority')}
+                }
         if self.accept_magic_kwargs:
             default_kwargs = {'task_name': task.name,
                               'task_id': task_id,

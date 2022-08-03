@@ -46,6 +46,7 @@ class Queues(dict):
                              the occurrence of unknown queues
                              in `wanted` will raise :exc:`KeyError`.
     :keyword ha_policy: Default HA policy for queues with none set.
+    max_priority (int): Default x-max-priority for queues with none set.
 
 
     """
@@ -54,13 +55,16 @@ class Queues(dict):
     _consume_from = None
 
     def __init__(self, queues=None, default_exchange=None,
-                 create_missing=True, ha_policy=None, autoexchange=None):
+                 create_missing=True, ha_policy=None, autoexchange=None,
+                 max_priority=None):
         dict.__init__(self)
         self.aliases = WeakValueDictionary()
         self.default_exchange = default_exchange
         self.create_missing = create_missing
         self.ha_policy = ha_policy
         self.autoexchange = Exchange if autoexchange is None else autoexchange
+        self.max_priority = max_priority
+
         if isinstance(queues, (tuple, list)):
             queues = dict((q.name, q) for q in queues)
         for name, q in items(queues or {}):
@@ -106,6 +110,10 @@ class Queues(dict):
             if queue.queue_arguments is None:
                 queue.queue_arguments = {}
             self._set_ha_policy(queue.queue_arguments)
+        if self.max_priority is not None:
+            if queue.queue_arguments is None:
+                queue.queue_arguments = {}
+            self._set_max_priority(queue.queue_arguments)
         self[queue.name] = queue
         return queue
 
@@ -116,8 +124,14 @@ class Queues(dict):
             options['routing_key'] = name
         if self.ha_policy is not None:
             self._set_ha_policy(options.setdefault('queue_arguments', {}))
+        if self.max_priority is not None:
+            self._set_max_priority(options.setdefault('queue_arguments', {}))
         q = self[name] = Queue.from_dict(name, **options)
         return q
+
+    def _set_max_priority(self, args):
+        if 'x-max-priority' not in args and self.max_priority is not None:
+            return args.update({'x-max-priority': self.max_priority})
 
     def _set_ha_policy(self, args):
         policy = self.ha_policy
@@ -407,12 +421,14 @@ class AMQP(object):
         self._rtable = _routes.prepare(self.app.conf.CELERY_ROUTES)
 
     def Queues(self, queues, create_missing=None, ha_policy=None,
-               autoexchange=None):
+                   autoexchange=None, max_priority=None):
         """Create new :class:`Queues` instance, using queue defaults
         from the current configuration."""
         conf = self.app.conf
         if create_missing is None:
             create_missing = conf.CELERY_CREATE_MISSING_QUEUES
+        if max_priority is None:
+            max_priority = conf.CELERY_TASK_QUEUE_MAX_PRIORITY
         if ha_policy is None:
             ha_policy = conf.CELERY_QUEUE_HA_POLICY
         if not queues and conf.CELERY_DEFAULT_QUEUE:
@@ -423,7 +439,7 @@ class AMQP(object):
                         else autoexchange)
         return self.queues_cls(
             queues, self.default_exchange, create_missing,
-            ha_policy, autoexchange,
+            ha_policy, autoexchange, max_priority
         )
 
     def Router(self, queues=None, create_missing=None):

@@ -358,6 +358,10 @@ class Celery(object):
             parent = get_current_worker_task()
             if parent:
                 parent.add_trail(result)
+
+        parent = get_current_worker_task()
+        if parent and conf.CELERY_TASK_INHERIT_PARENT_PRIORITY:
+            options.setdefault('priority', parent.request.delivery_info.get('priority'))
         return result
 
     def connection(self, hostname=None, userid=None, password=None,

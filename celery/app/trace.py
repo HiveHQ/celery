@@ -191,6 +191,8 @@ def build_tracer(name, task, loader=None, hostname=None, store_errors=True,
     postrun_receivers = signals.task_postrun.receivers
     success_receivers = signals.task_success.receivers
 
+    inherit_parent_priority = app.conf.CELERY_TASK_INHERIT_PARENT_PRIORITY
+
     from celery import canvas
     signature = canvas.maybe_signature  # maybe_ does not clone if already
 
@@ -222,6 +224,10 @@ def build_tracer(name, task, loader=None, hostname=None, store_errors=True,
             push_task(task)
             task_request = Context(request or {}, args=args,
                                    called_directly=False, kwargs=kwargs)
+
+            task_priority = task_request.delivery_info.get('priority') if \
+                            inherit_parent_priority else None
+
             push_request(task_request)
             try:
                 # -*- PRE -*-
@@ -273,11 +279,11 @@ def build_tracer(name, task, loader=None, hostname=None, store_errors=True,
                                     else:
                                         sigs.append(sig)
                                 for group_ in groups:
-                                    group_.apply_async((retval, ))
+                                    group_.apply_async((retval, ), priority=task_priority)
                                 if sigs:
-                                    group(sigs).apply_async((retval, ))
+                                    group(sigs).apply_async((retval, ), priority=task_priority)
                             else:
-                                signature(callbacks[0], app=app).delay(retval)
+                                signature(callbacks[0], app=app).apply_async((retval, ), priority=task_priority)
                         if publish_result:
                             store_result(
                                 uuid, retval, SUCCESS, request=task_request,

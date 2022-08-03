@@ -169,6 +169,8 @@ NAMESPACES = {
         'SECURITY_CERTIFICATE': Option(type='string'),
         'SECURITY_CERT_STORE': Option(type='string'),
         'WORKER_DIRECT': Option(False, type='bool'),
+        'TASK_QUEUE_MAX_PRIORITY': Option(10, type='int'),
+        'TASK_INHERIT_PARENT_PRIORITY': Option(True, type='bool'),
     },
     'CELERYD': {
         'AGENT': Option(None, type='string'),

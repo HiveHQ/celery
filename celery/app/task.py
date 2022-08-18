@@ -346,7 +346,6 @@ class Task(object):
     from_config = (
         ('priority', 'CELERY_TASK_DEFAULT_PRIORITY'),
         ('send_error_emails', 'CELERY_SEND_TASK_ERROR_EMAILS'),
-        ('send_error_emails', 'CELERY_SEND_TASK_ERROR_EMAILS'),
         ('serializer', 'CELERY_TASK_SERIALIZER'),
         ('rate_limit', 'CELERY_DEFAULT_RATE_LIMIT'),
         ('track_started', 'CELERY_TRACK_STARTED'),
@@ -372,7 +371,10 @@ class Task(object):
 
         for attr_name, config_name in self.from_config:
             if getattr(self, attr_name, None) is None:
-                setattr(self, attr_name, conf[config_name])
+                if config_name == 'CELERY_TASK_DEFAULT_PRIORITY':
+                    setattr(self, attr_name, 0)
+                else:
+                    setattr(self, attr_name, conf[config_name])
         if self.accept_magic_kwargs is None:
             self.accept_magic_kwargs = app.accept_magic_kwargs
 

@@ -162,7 +162,7 @@ class RedisBackend(KeyValueStoreBackend):
     def _set(self, key, value):
         with self.client.pipeline() as pipe:
             if self.expires:
-                pipe.setex(key, value, self.expires)
+                pipe.setex(key, self.expires, value)
             else:
                 pipe.set(key, value)
             pipe.publish(key, value)

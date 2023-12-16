@@ -14,6 +14,7 @@ import logging
 kombu_async = importlib.import_module("kombu.async")
 from celery.utils.log import get_logger
 from celery.utils.timeutils import timezone
+from kombu.utils.encoding import safe_repr
 
 kombu_async_timer = importlib.import_module("kombu.async.timer")
 to_timestamp = getattr(kombu_async_timer, 'to_timestamp')

@@ -8,13 +8,15 @@
 """
 from __future__ import absolute_import
 
+import importlib
 import logging
 
-from kombu.async.timer import to_timestamp
-from kombu.utils.encoding import safe_repr
-
+kombu_async = importlib.import_module("kombu.async")
 from celery.utils.log import get_logger
 from celery.utils.timeutils import timezone
+
+kombu_async_timer = importlib.import_module("kombu.async.timer")
+to_timestamp = getattr(kombu_async_timer, 'to_timestamp')
 
 from .job import Request
 from .state import task_reserved

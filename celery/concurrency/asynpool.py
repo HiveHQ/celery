@@ -19,13 +19,14 @@
 from __future__ import absolute_import
 
 import errno
+import gc
+import importlib
 import os
 import select
 import socket
 import struct
 import sys
 import time
-
 from collections import deque, namedtuple
 from io import BytesIO
 from pickle import HIGHEST_PROTOCOL
@@ -33,24 +34,31 @@ from time import sleep
 from weakref import WeakValueDictionary, ref
 
 from amqp.utils import promise
-from billiard.pool import RUN, TERMINATE, ACK, NACK, WorkersJoined
 from billiard import pool as _pool
-from billiard.compat import buf_t, setblocking, isblocking
+from billiard.compat import buf_t, isblocking, setblocking
 from billiard.einfo import ExceptionInfo
+from billiard.pool import ACK, NACK, RUN, TERMINATE, WorkersJoined
 from billiard.queues import _SimpleQueue
-from kombu.async import READ, WRITE, ERR
-from kombu.serialization import pickle as _pickle
-from kombu.utils import fxrange
-from kombu.utils.compat import get_errno
-from kombu.utils.eventio import SELECT_BAD_FD
+
+kombu_async = importlib.import_module("kombu.async")
+
+READ = getattr(kombu_async, 'READ')
+WRITE = getattr(kombu_async, 'WRITE')
+ERR = getattr(kombu_async, 'ERR')
+
 from celery.five import Counter, items, string_t, text_t, values
 from celery.utils.log import get_logger
 from celery.utils.text import truncate
 from celery.worker import state as worker_state
+from kombu.serialization import pickle as _pickle
+from kombu.utils import fxrange
+from kombu.utils.compat import get_errno
+from kombu.utils.eventio import SELECT_BAD_FD
 
 try:
-    from _billiard import read as __read__
     from struct import unpack_from as _unpack_from
+
+    from _billiard import read as __read__
     memoryview = memoryview
     readcanbuf = True
 

@@ -11,28 +11,22 @@ up and running.
 from __future__ import absolute_import
 
 import errno
-import kombu
+import importlib
 import logging
 import os
 import socket
-
 from collections import defaultdict
 from functools import partial
 from heapq import heappush
 from operator import itemgetter
 from time import sleep
 
+import kombu
 from billiard.common import restart_state
 from billiard.exceptions import RestartFreqExceeded
-from kombu.async.semaphore import DummyLock
-from kombu.common import QoS, ignore_errors
-from kombu.syn import _detect_environment
-from kombu.utils.compat import get_errno
-from kombu.utils.encoding import safe_repr, bytes_t
-from kombu.utils.limits import TokenBucket
 
-from celery import chain
-from celery import bootsteps
+kombu_async_semephore = importlib.import_module("kombu.async.semaphore")
+from celery import bootsteps, chain
 from celery.app.trace import build_tracer
 from celery.canvas import signature
 from celery.exceptions import InvalidTaskError
@@ -42,9 +36,16 @@ from celery.utils.log import get_logger
 from celery.utils.objects import Bunch
 from celery.utils.text import truncate
 from celery.utils.timeutils import humanize_seconds, rate
+from kombu.common import QoS, ignore_errors
+from kombu.syn import _detect_environment
+from kombu.utils.compat import get_errno
+from kombu.utils.encoding import bytes_t, safe_repr
+from kombu.utils.limits import TokenBucket
+
+DummyLock = getattr(kombu_async_semephore, 'DummyLock')
 
 from . import heartbeat, loops, pidbox
-from .state import task_reserved, maybe_shutdown, revoked, reserved_requests
+from .state import maybe_shutdown, reserved_requests, revoked, task_reserved
 
 try:
     buffer_t = buffer

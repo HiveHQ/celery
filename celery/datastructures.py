@@ -10,10 +10,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import sys
 import time
-
-from collections import defaultdict, Mapping, MutableMapping, MutableSet
-from heapq import heapify, heappush, heappop
+from collections import defaultdict
+from collections.abc import Mapping, MutableMapping, MutableSet
 from functools import partial
+from heapq import heapify, heappop, heappush
 from itertools import chain
 
 from billiard.einfo import ExceptionInfo  # noqa
@@ -26,24 +26,33 @@ from celery.utils.functional import LRUCache, first, uniq  # noqa
 try:
     from django.utils.functional import LazyObject, LazySettings
 except ImportError:
+
     class LazyObject(object):  # noqa
         pass
+
     LazySettings = LazyObject  # noqa
 
 DOT_HEAD = """
 {IN}{type} {id} {{
 {INp}graph [{attrs}]
 """
-DOT_ATTR = '{name}={value}'
+DOT_ATTR = "{name}={value}"
 DOT_NODE = '{INp}"{0}" [{attrs}]'
 DOT_EDGE = '{INp}"{0}" {dir} "{1}" [{attrs}]'
-DOT_ATTRSEP = ', '
-DOT_DIRS = {'graph': '--', 'digraph': '->'}
-DOT_TAIL = '{IN}}}'
+DOT_ATTRSEP = ", "
+DOT_DIRS = {"graph": "--", "digraph": "->"}
+DOT_TAIL = "{IN}}}"
 
-__all__ = ['GraphFormatter', 'CycleError', 'DependencyGraph',
-           'AttributeDictMixin', 'AttributeDict', 'DictAttribute',
-           'ConfigurationView', 'LimitedSet']
+__all__ = [
+    "GraphFormatter",
+    "CycleError",
+    "DependencyGraph",
+    "AttributeDictMixin",
+    "AttributeDict",
+    "DictAttribute",
+    "ConfigurationView",
+    "LimitedSet",
+]
 
 
 def force_mapping(m):
@@ -62,25 +71,24 @@ class GraphFormatter(object):
     _dirs = dict(DOT_DIRS)
 
     scheme = {
-        'shape': 'box',
-        'arrowhead': 'vee',
-        'style': 'filled',
-        'fontname': 'HelveticaNeue',
+        "shape": "box",
+        "arrowhead": "vee",
+        "style": "filled",
+        "fontname": "HelveticaNeue",
     }
     edge_scheme = {
-        'color': 'darkseagreen4',
-        'arrowcolor': 'black',
-        'arrowsize': 0.7,
+        "color": "darkseagreen4",
+        "arrowcolor": "black",
+        "arrowsize": 0.7,
     }
-    node_scheme = {'fillcolor': 'palegreen3', 'color': 'palegreen4'}
-    term_scheme = {'fillcolor': 'palegreen1', 'color': 'palegreen2'}
-    graph_scheme = {'bgcolor': 'mintcream'}
+    node_scheme = {"fillcolor": "palegreen3", "color": "palegreen4"}
+    term_scheme = {"fillcolor": "palegreen1", "color": "palegreen2"}
+    graph_scheme = {"bgcolor": "mintcream"}
 
-    def __init__(self, root=None, type=None, id=None,
-                 indent=0, inw=' ' * 4, **scheme):
-        self.id = id or 'dependencies'
+    def __init__(self, root=None, type=None, id=None, indent=0, inw=" " * 4, **scheme):
+        self.id = id or "dependencies"
         self.root = root
-        self.type = type or 'digraph'
+        self.type = type or "digraph"
         self.direction = self._dirs[self.type]
         self.IN = inw * (indent or 0)
         self.INp = self.IN + inw
@@ -93,13 +101,13 @@ class GraphFormatter(object):
 
     def attrs(self, d, scheme=None):
         d = dict(self.scheme, **dict(scheme, **d or {}) if scheme else d)
-        return self._attrsep.join(
-            safe_str(self.attr(k, v)) for k, v in items(d)
-        )
+        return self._attrsep.join(safe_str(self.attr(k, v)) for k, v in items(d))
 
     def head(self, **attrs):
         return self.FMT(
-            self._head, id=self.id, type=self.type,
+            self._head,
+            id=self.id,
+            type=self.type,
             attrs=self.attrs(attrs, self.graph_scheme),
         )
 
@@ -119,22 +127,25 @@ class GraphFormatter(object):
         return self.draw_edge(a, b, **attrs)
 
     def _enc(self, s):
-        return s.encode('utf-8', 'ignore')
+        return s.encode("utf-8", "ignore")
 
     def FMT(self, fmt, *args, **kwargs):
-        return self._enc(fmt.format(
-            *args, **dict(kwargs, IN=self.IN, INp=self.INp)
-        ))
+        return self._enc(fmt.format(*args, **dict(kwargs, IN=self.IN, INp=self.INp)))
 
     def draw_edge(self, a, b, scheme=None, attrs=None):
         return self.FMT(
-            self._edge, self.label(a), self.label(b),
-            dir=self.direction, attrs=self.attrs(attrs, self.edge_scheme),
+            self._edge,
+            self.label(a),
+            self.label(b),
+            dir=self.direction,
+            attrs=self.attrs(attrs, self.edge_scheme),
         )
 
     def draw_node(self, obj, scheme=None, attrs=None):
         return self.FMT(
-            self._node, self.label(obj), attrs=self.attrs(attrs, scheme),
+            self._node,
+            self.label(obj),
+            attrs=self.attrs(attrs, scheme),
         )
 
 
@@ -186,9 +197,7 @@ class DependencyGraph(object):
         graph = DependencyGraph()
         components = self._tarjan72()
 
-        NC = dict((node, component)
-                  for component in components
-                  for node in component)
+        NC = dict((node, component) for component in components for node in component)
         for component in components:
             graph.add_arc(component)
         for node in self:
@@ -321,19 +330,20 @@ class DependencyGraph(object):
 
     def _iterate_items(self):
         return items(self.adjacent)
+
     items = iteritems = _iterate_items
 
     def __repr__(self):
-        return '\n'.join(self.repr_node(N) for N in self)
+        return "\n".join(self.repr_node(N) for N in self)
 
-    def repr_node(self, obj, level=1, fmt='{0}({1})'):
+    def repr_node(self, obj, level=1, fmt="{0}({1})"):
         output = [fmt.format(obj, self.valency_of(obj))]
         if obj in self:
             for other in self[obj]:
                 d = fmt.format(other, self.valency_of(other))
-                output.append('     ' * level + d)
-                output.extend(self.repr_node(other, level + 1).split('\n')[1:])
-        return '\n'.join(output)
+                output.append("     " * level + d)
+                output.extend(self.repr_node(other, level + 1).split("\n")[1:])
+        return "\n".join(output)
 
 
 class AttributeDictMixin(object):
@@ -349,8 +359,8 @@ class AttributeDictMixin(object):
             return self[k]
         except KeyError:
             raise AttributeError(
-                '{0!r} object has no attribute {1!r}'.format(
-                    type(self).__name__, k))
+                "{0!r} object has no attribute {1!r}".format(type(self).__name__, k)
+            )
 
     def __setattr__(self, key, value):
         """`d[key] = value -> d.key = value`"""
@@ -359,6 +369,7 @@ class AttributeDictMixin(object):
 
 class AttributeDict(dict, AttributeDictMixin):
     """Dict subclass with attribute access."""
+
     pass
 
 
@@ -369,10 +380,11 @@ class DictAttribute(object):
     `obj[k] = val -> obj.k = val`
 
     """
+
     obj = None
 
     def __init__(self, obj):
-        object.__setattr__(self, 'obj', obj)
+        object.__setattr__(self, "obj", obj)
 
     def __getattr__(self, key):
         return getattr(self.obj, key)
@@ -407,6 +419,7 @@ class DictAttribute(object):
 
     def _iterate_keys(self):
         return iter(dir(self.obj))
+
     iterkeys = _iterate_keys
 
     def __iter__(self):
@@ -415,11 +428,13 @@ class DictAttribute(object):
     def _iterate_items(self):
         for key in self._iterate_keys():
             yield key, getattr(self.obj, key)
+
     iteritems = _iterate_items
 
     def _iterate_values(self):
         for key in self._iterate_keys():
             yield getattr(self.obj, key)
+
     itervalues = _iterate_values
 
     if sys.version_info[0] == 3:  # pragma: no cover
@@ -436,6 +451,8 @@ class DictAttribute(object):
 
         def values(self):
             return list(self._iterate_values())
+
+
 MutableMapping.register(DictAttribute)
 
 
@@ -451,13 +468,15 @@ class ConfigurationView(AttributeDictMixin):
     :param defaults: List of dicts containing the default configuration.
 
     """
+
     changes = None
     defaults = None
     _order = None
 
     def __init__(self, changes, defaults):
-        self.__dict__.update(changes=changes, defaults=defaults,
-                             _order=[changes] + defaults)
+        self.__dict__.update(
+            changes=changes, defaults=defaults, _order=[changes] + defaults
+        )
 
     def add_defaults(self, d):
         d = force_mapping(d)
@@ -503,6 +522,7 @@ class ConfigurationView(AttributeDictMixin):
 
     def __bool__(self):
         return any(self._order)
+
     __nonzero__ = __bool__  # Py2
 
     def __repr__(self):
@@ -523,14 +543,17 @@ class ConfigurationView(AttributeDictMixin):
 
     def _iterate_keys(self):
         return uniq(self._iter(lambda d: d))
+
     iterkeys = _iterate_keys
 
     def _iterate_items(self):
         return ((key, self[key]) for key in self)
+
     iteritems = _iterate_items
 
     def _iterate_values(self):
         return (self[key] for key in self)
+
     itervalues = _iterate_values
 
     if sys.version_info[0] == 3:  # pragma: no cover
@@ -539,6 +562,7 @@ class ConfigurationView(AttributeDictMixin):
         values = _iterate_values
 
     else:  # noqa
+
         def keys(self):
             return list(self._iterate_keys())
 
@@ -547,6 +571,7 @@ class ConfigurationView(AttributeDictMixin):
 
         def values(self):
             return list(self._iterate_values())
+
 
 MutableMapping.register(ConfigurationView)
 
@@ -606,6 +631,7 @@ class LimitedSet(object):
         except ValueError:
             pass
         self._data.pop(value, None)
+
     pop_value = discard  # XXX compat
 
     def purge(self, limit=None, offset=0, now=time.time):
@@ -655,7 +681,7 @@ class LimitedSet(object):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return 'LimitedSet({0})'.format(len(self))
+        return "LimitedSet({0})".format(len(self))
 
     def __iter__(self):
         return (item[1] for item in self._heap)
@@ -668,4 +694,6 @@ class LimitedSet(object):
 
     def __reduce__(self):
         return self.__class__, (self.maxlen, self.expires, self._data)
+
+
 MutableSet.register(LimitedSet)

@@ -8,6 +8,7 @@
 """
 from __future__ import absolute_import, print_function
 
+import datetime
 import numbers
 import os
 import re
@@ -15,22 +16,31 @@ import socket
 import sys
 import traceback
 import warnings
-import datetime
-
 from collections.abc import Callable
 from functools import partial, wraps
-from inspect import getargspec
+from inspect import getfullargspec as getargspec
 from pprint import pprint
 
+from celery.exceptions import CDeprecationWarning, CPendingDeprecationWarning
+from celery.five import WhateverIO, items, reraise, string_t
 from kombu.entity import Exchange, Queue
 
-from celery.exceptions import CPendingDeprecationWarning, CDeprecationWarning
-from celery.five import WhateverIO, items, reraise, string_t
-
-__all__ = ['worker_direct', 'warn_deprecated', 'deprecated', 'lpmerge',
-           'is_iterable', 'isatty', 'cry', 'maybe_reraise', 'strtobool',
-           'jsonify', 'gen_task_name', 'nodename', 'nodesplit',
-           'cached_property']
+__all__ = [
+    "worker_direct",
+    "warn_deprecated",
+    "deprecated",
+    "lpmerge",
+    "is_iterable",
+    "isatty",
+    "cry",
+    "maybe_reraise",
+    "strtobool",
+    "jsonify",
+    "gen_task_name",
+    "nodename",
+    "nodesplit",
+    "cached_property",
+]
 
 PY3 = sys.version_info[0] == 3
 
@@ -50,19 +60,19 @@ DEPRECATION_FMT = """
 #: We use it to find out the name of the original ``__main__``
 #: module, so that we can properly rewrite the name of the
 #: task to be that of ``App.main``.
-MP_MAIN_FILE = os.environ.get('MP_MAIN_FILE') or None
+MP_MAIN_FILE = os.environ.get("MP_MAIN_FILE") or None
 
 #: Exchange for worker direct queues.
-WORKER_DIRECT_EXCHANGE = Exchange('C.dq')
+WORKER_DIRECT_EXCHANGE = Exchange("C.dq")
 
 #: Format for worker direct queue names.
-WORKER_DIRECT_QUEUE_FORMAT = '{hostname}.dq'
+WORKER_DIRECT_QUEUE_FORMAT = "{hostname}.dq"
 
 #: Separator for worker node name and hostname.
-NODENAME_SEP = '@'
+NODENAME_SEP = "@"
 
-NODENAME_DEFAULT = 'celery'
-RE_FORMAT = re.compile(r'%(\w)')
+NODENAME_DEFAULT = "celery"
+RE_FORMAT = re.compile(r"%(\w)")
 
 
 def worker_direct(hostname):
@@ -76,16 +86,23 @@ def worker_direct(hostname):
     """
     if isinstance(hostname, Queue):
         return hostname
-    return Queue(WORKER_DIRECT_QUEUE_FORMAT.format(hostname=hostname),
-                 WORKER_DIRECT_EXCHANGE,
-                 hostname, auto_delete=True)
+    return Queue(
+        WORKER_DIRECT_QUEUE_FORMAT.format(hostname=hostname),
+        WORKER_DIRECT_EXCHANGE,
+        hostname,
+        auto_delete=True,
+    )
 
 
-def warn_deprecated(description=None, deprecation=None,
-                    removal=None, alternative=None, stacklevel=2):
-    ctx = {'description': description,
-           'deprecation': deprecation, 'removal': removal,
-           'alternative': alternative}
+def warn_deprecated(
+    description=None, deprecation=None, removal=None, alternative=None, stacklevel=2
+):
+    ctx = {
+        "description": description,
+        "deprecation": deprecation,
+        "removal": removal,
+        "alternative": alternative,
+    }
     if deprecation is not None:
         w = CPendingDeprecationWarning(PENDING_DEPRECATION_FMT.format(**ctx))
     else:
@@ -93,8 +110,7 @@ def warn_deprecated(description=None, deprecation=None,
     warnings.warn(w, stacklevel=stacklevel)
 
 
-def deprecated(deprecation=None, removal=None,
-               alternative=None, description=None):
+def deprecated(deprecation=None, removal=None, alternative=None, description=None):
     """Decorator for deprecated functions.
 
     A deprecation warning will be emitted when the function is called.
@@ -107,41 +123,53 @@ def deprecated(deprecation=None, removal=None,
     :keyword description: Description of what is being deprecated.
 
     """
-    def _inner(fun):
 
+    def _inner(fun):
         @wraps(fun)
         def __inner(*args, **kwargs):
             from .imports import qualname
-            warn_deprecated(description=description or qualname(fun),
-                            deprecation=deprecation,
-                            removal=removal,
-                            alternative=alternative,
-                            stacklevel=3)
+
+            warn_deprecated(
+                description=description or qualname(fun),
+                deprecation=deprecation,
+                removal=removal,
+                alternative=alternative,
+                stacklevel=3,
+            )
             return fun(*args, **kwargs)
+
         return __inner
+
     return _inner
 
 
-def deprecated_property(deprecation=None, removal=None,
-                        alternative=None, description=None):
+def deprecated_property(
+    deprecation=None, removal=None, alternative=None, description=None
+):
     def _inner(fun):
         return _deprecated_property(
-            fun, deprecation=deprecation, removal=removal,
-            alternative=alternative, description=description or fun.__name__)
+            fun,
+            deprecation=deprecation,
+            removal=removal,
+            alternative=alternative,
+            description=description or fun.__name__,
+        )
+
     return _inner
 
 
 class _deprecated_property(object):
-
     def __init__(self, fget=None, fset=None, fdel=None, doc=None, **depreinfo):
         self.__get = fget
         self.__set = fset
         self.__del = fdel
         self.__name__, self.__module__, self.__doc__ = (
-            fget.__name__, fget.__module__, fget.__doc__,
+            fget.__name__,
+            fget.__module__,
+            fget.__doc__,
         )
         self.depreinfo = depreinfo
-        self.depreinfo.setdefault('stacklevel', 3)
+        self.depreinfo.setdefault("stacklevel", 3)
 
     def __get__(self, obj, type=None):
         if obj is None:
@@ -153,7 +181,7 @@ class _deprecated_property(object):
         if obj is None:
             return self
         if self.__set is None:
-            raise AttributeError('cannot set attribute')
+            raise AttributeError("cannot set attribute")
         warn_deprecated(**self.depreinfo)
         self.__set(obj, value)
 
@@ -161,7 +189,7 @@ class _deprecated_property(object):
         if obj is None:
             return self
         if self.__del is None:
-            raise AttributeError('cannot delete attribute')
+            raise AttributeError("cannot delete attribute")
         warn_deprecated(**self.depreinfo)
         self.__del(obj)
 
@@ -191,7 +219,7 @@ def is_iterable(obj):
 
 def fun_takes_kwargs(fun, kwlist=[]):
     # deprecated
-    S = getattr(fun, 'argspec', getargspec(fun))
+    S = getattr(fun, "argspec", getargspec(fun))
     if S.keywords is not None:
         return kwlist
     return [kw for kw in kwlist if kw in S.args]
@@ -204,7 +232,7 @@ def isatty(fh):
         pass
 
 
-def cry(out=None, sepchr='=', seplen=49):  # pragma: no cover
+def cry(out=None, sepchr="=", seplen=49):  # pragma: no cover
     """Return stacktrace of all active threads,
     taken from https://gist.github.com/737056."""
     import threading
@@ -222,14 +250,14 @@ def cry(out=None, sepchr='=', seplen=49):  # pragma: no cover
         if not thread:
             # skip old junk (left-overs from a fork)
             continue
-        P('{0.name}'.format(thread))
+        P("{0.name}".format(thread))
         P(sep)
         traceback.print_stack(frame, file=out)
         P(sep)
-        P('LOCAL VARIABLES')
+        P("LOCAL VARIABLES")
         P(sep)
         pprint(frame.f_locals, stream=out)
-        P('\n')
+        P("\n")
     return out.getvalue()
 
 
@@ -242,31 +270,49 @@ def maybe_reraise():
             reraise(exc_info[0], exc_info[1], exc_info[2])
     finally:
         # see http://docs.python.org/library/sys.html#sys.exc_info
-        del(exc_info)
+        del exc_info
 
 
-def strtobool(term, table={'false': False, 'no': False, '0': False,
-                           'true': True, 'yes': True, '1': True,
-                           'on': True, 'off': False}):
+def strtobool(
+    term,
+    table={
+        "false": False,
+        "no": False,
+        "0": False,
+        "true": True,
+        "yes": True,
+        "1": True,
+        "on": True,
+        "off": False,
+    },
+):
     """Convert common terms for true/false to bool
     (true/false/yes/no/on/off/1/0)."""
     if isinstance(term, string_t):
         try:
             return table[term.lower()]
         except KeyError:
-            raise TypeError('Cannot coerce {0!r} to type bool'.format(term))
+            raise TypeError("Cannot coerce {0!r} to type bool".format(term))
     return term
 
 
-def jsonify(obj,
-            builtin_types=(numbers.Real, string_t), key=None,
-            keyfilter=None,
-            unknown_type_filter=None):
+def jsonify(
+    obj,
+    builtin_types=(numbers.Real, string_t),
+    key=None,
+    keyfilter=None,
+    unknown_type_filter=None,
+):
     """Transforms object making it suitable for json serialization"""
     from kombu.abstract import Object as KombuDictType
-    _jsonify = partial(jsonify, builtin_types=builtin_types, key=key,
-                       keyfilter=keyfilter,
-                       unknown_type_filter=unknown_type_filter)
+
+    _jsonify = partial(
+        jsonify,
+        builtin_types=builtin_types,
+        key=key,
+        keyfilter=keyfilter,
+        unknown_type_filter=unknown_type_filter,
+    )
 
     if isinstance(obj, KombuDictType):
         obj = obj.as_dict(recurse=True)
@@ -276,16 +322,18 @@ def jsonify(obj,
     elif isinstance(obj, (tuple, list)):
         return [_jsonify(v) for v in obj]
     elif isinstance(obj, dict):
-        return dict((k, _jsonify(v, key=k))
-                    for k, v in items(obj)
-                    if (keyfilter(k) if keyfilter else 1))
+        return dict(
+            (k, _jsonify(v, key=k))
+            for k, v in items(obj)
+            if (keyfilter(k) if keyfilter else 1)
+        )
     elif isinstance(obj, datetime.datetime):
         # See "Date Time String Format" in the ECMA-262 specification.
         r = obj.isoformat()
         if obj.microsecond:
             r = r[:23] + r[26:]
-        if r.endswith('+00:00'):
-            r = r[:-6] + 'Z'
+        if r.endswith("+00:00"):
+            r = r[:-6] + "Z"
         return r
     elif isinstance(obj, datetime.date):
         return obj.isoformat()
@@ -299,8 +347,10 @@ def jsonify(obj,
     else:
         if unknown_type_filter is None:
             raise ValueError(
-                'Unsupported type: {0!r} {1!r} (parent: {2})'.format(
-                    type(obj), obj, key))
+                "Unsupported type: {0!r} {1!r} (parent: {2})".format(
+                    type(obj), obj, key
+                )
+            )
         return unknown_type_filter(obj)
 
 
@@ -319,10 +369,10 @@ def gen_task_name(app, name, module_name):
         # - to match App.main.
         if MP_MAIN_FILE and module.__file__ == MP_MAIN_FILE:
             # - see comment about :envvar:`MP_MAIN_FILE` above.
-            module_name = '__main__'
-    if module_name == '__main__' and app.main:
-        return '.'.join([app.main, name])
-    return '.'.join(p for p in (module_name, name) if p)
+            module_name = "__main__"
+    if module_name == "__main__" and app.main:
+        return ".".join([app.main, name])
+    return ".".join(p for p in (module_name, name) if p)
 
 
 def nodename(name, hostname):
@@ -330,9 +380,10 @@ def nodename(name, hostname):
     return NODENAME_SEP.join((name, hostname))
 
 
-def anon_nodename(hostname=None, prefix='gen'):
-    return nodename(''.join([prefix, str(os.getpid())]),
-                    hostname or socket.gethostname())
+def anon_nodename(hostname=None, prefix="gen"):
+    return nodename(
+        "".join([prefix, str(os.getpid())]), hostname or socket.gethostname()
+    )
 
 
 def nodesplit(nodename):
@@ -344,36 +395,44 @@ def nodesplit(nodename):
 
 
 def default_nodename(hostname):
-    name, host = nodesplit(hostname or '')
+    name, host = nodesplit(hostname or "")
     return nodename(name or NODENAME_DEFAULT, host or socket.gethostname())
 
 
 def node_format(s, nodename, **extra):
     name, host = nodesplit(nodename)
-    return host_format(
-        s, host, n=name or NODENAME_DEFAULT, **extra)
+    return host_format(s, host, n=name or NODENAME_DEFAULT, **extra)
 
 
-def _fmt_process_index(prefix='', default='0'):
+def _fmt_process_index(prefix="", default="0"):
     from .log import current_process_index
+
     index = current_process_index()
-    return '{0}{1}'.format(prefix, index) if index else default
-_fmt_process_index_with_prefix = partial(_fmt_process_index, '-', '')
+    return "{0}{1}".format(prefix, index) if index else default
+
+
+_fmt_process_index_with_prefix = partial(_fmt_process_index, "-", "")
 
 
 def host_format(s, host=None, **extra):
     host = host or socket.gethostname()
-    name, _, domain = host.partition('.')
-    keys = dict({
-        'h': host, 'n': name, 'd': domain,
-        'i': _fmt_process_index, 'I': _fmt_process_index_with_prefix,
-    }, **extra)
+    name, _, domain = host.partition(".")
+    keys = dict(
+        {
+            "h": host,
+            "n": name,
+            "d": domain,
+            "i": _fmt_process_index,
+            "I": _fmt_process_index_with_prefix,
+        },
+        **extra
+    )
     return simple_format(s, keys)
 
 
-def simple_format(s, keys, pattern=RE_FORMAT, expand=r'\1'):
+def simple_format(s, keys, pattern=RE_FORMAT, expand=r"\1"):
     if s:
-        keys.setdefault('%', '%')
+        keys.setdefault("%", "%")
 
         def resolve(match):
             resolver = keys[match.expand(expand)]
@@ -385,13 +444,15 @@ def simple_format(s, keys, pattern=RE_FORMAT, expand=r'\1'):
     return s
 
 
+from kombu.utils import cached_property, kwdict, uuid  # noqa
+
+from .functional import chunks, noop  # noqa
+from .imports import import_from_cwd, instantiate
+from .imports import qualname as get_full_cls_name  # noqa
+from .imports import symbol_by_name as get_cls_by_name
+
 # ------------------------------------------------------------------------ #
 # > XXX Compat
-from .log import LOG_LEVELS     # noqa
-from .imports import (          # noqa
-    qualname as get_full_cls_name, symbol_by_name as get_cls_by_name,
-    instantiate, import_from_cwd
-)
-from .functional import chunks, noop                    # noqa
-from kombu.utils import cached_property, kwdict, uuid   # noqa
+from .log import LOG_LEVELS  # noqa
+
 gen_unique_id = uuid

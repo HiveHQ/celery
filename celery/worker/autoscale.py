@@ -13,17 +13,19 @@
 """
 from __future__ import absolute_import
 
+import importlib
 import os
 import threading
-
 from time import sleep
 
-from kombu.async.semaphore import DummyLock
-
+kombu_async_semaphore = importlib.import_module("kombu.async.semaphore")
 from celery import bootsteps
 from celery.five import monotonic
 from celery.utils.log import get_logger
 from celery.utils.threads import bgThread
+
+DummyLock = getattr(kombu_async_semaphore, 'DummyLock')
+
 
 from . import state
 from .components import Pool

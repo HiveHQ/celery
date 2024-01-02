@@ -9,17 +9,25 @@
 from __future__ import absolute_import
 
 import atexit
+import importlib
 import warnings
 
-from kombu.async import Hub as _Hub, get_event_loop, set_event_loop
-from kombu.async.semaphore import DummyLock, LaxBoundedSemaphore
-from kombu.async.timer import Timer as _Timer
-
+kombu_async = importlib.import_module("kombu.async")
+kombu_async_semaphore = importlib.import_module("kombu.async.semaphore")
+kombu_async_timer = importlib.import_module("kombu.async.timer")
 from celery import bootsteps
 from celery._state import _set_task_join_will_block
 from celery.exceptions import ImproperlyConfigured
 from celery.five import string_t
 from celery.utils.log import worker_logger as logger
+
+_Hub = getattr(kombu_async, 'Hub')
+get_event_loop = getattr(kombu_async, 'get_event_loop')
+set_event_loop = getattr(kombu_async, 'set_event_loop')
+DummyLock = getattr(kombu_async_semaphore, 'DummyLock')
+LaxBoundedSemaphore = getattr(kombu_async_semaphore, 'LaxBoundedSemaphore')
+_Timer = getattr(kombu_async_timer, 'Timer')
+
 
 __all__ = ['Timer', 'Hub', 'Queues', 'Pool', 'Beat', 'StateDB', 'Consumer']
 

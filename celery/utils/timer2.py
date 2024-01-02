@@ -8,15 +8,20 @@
 """
 from __future__ import absolute_import
 
+import importlib
 import os
 import sys
 import threading
-
 from itertools import count
 from time import sleep
 
 from celery.five import THREAD_TIMEOUT_MAX
-from kombu.async.timer import Entry, Timer as Schedule, to_timestamp, logger
+
+kombu_async_timer = importlib.import_module("kombu.async.timer")
+Entry = getattr(kombu_async_timer, 'Entry')
+Schedule = getattr(kombu_async_timer, 'Timer')
+logger = getattr(kombu_async_timer, 'logger')
+to_timestamp = getattr(kombu_async_timer, 'to_timestamp')
 
 TIMER_DEBUG = os.environ.get('TIMER_DEBUG')
 

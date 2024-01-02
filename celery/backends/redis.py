@@ -10,9 +10,6 @@ from __future__ import absolute_import
 
 from functools import partial
 
-from kombu.utils import cached_property, retry_over_time
-from kombu.utils.url import _parse_url
-
 from celery import states
 from celery.canvas import maybe_signature
 from celery.exceptions import ChordError, ImproperlyConfigured
@@ -21,13 +18,16 @@ from celery.utils import deprecated_property, strtobool
 from celery.utils.functional import dictfilter
 from celery.utils.log import get_logger
 from celery.utils.timeutils import humanize_seconds
+from kombu.utils import cached_property, retry_over_time
+from kombu.utils.url import _parse_url
 
 from .base import KeyValueStoreBackend
 
 try:
     import redis
     from redis.exceptions import ConnectionError
-    from kombu.transport.redis import get_redis_error_classes
+
+    from .patched_kombu_redis_transport import get_redis_error_classes
 except ImportError:                 # pragma: no cover
     redis = None                    # noqa
     ConnectionError = None          # noqa
